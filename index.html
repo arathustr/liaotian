@@ -956,7 +956,7 @@
 
         const MainApp = () => {
             const [user, setUser] = useState(AV.User.current());
-            const [activeTab, setActiveTab] = useState('chat');
+            const [activeTab, setActiveTab] = useState('forum');
             const [status, setStatus] = useState(user ? (user.get('status') || 'pending') : 'pending');
             const [isChecking, setIsChecking] = useState(!!user);
 
