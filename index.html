@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>云端留言板</title>
+    <title>爷爷河畔</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -78,7 +78,7 @@
             return (
                 <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
                     <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm">
-                        <h2 className="text-2xl font-bold text-center mb-6 text-indigo-600">{isLogin ? '登录留言板' : '申请注册'}</h2>
+                        <h2 className="text-2xl font-bold text-center mb-6 text-indigo-600">{isLogin ? '登录爷爷河畔' : '申请注册'}</h2>
                         {error && <div className="bg-red-50 text-red-500 p-2 text-sm rounded mb-4 text-center">{error}</div>}
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div><label className="block text-sm font-medium text-gray-700">账号</label><input type="text" required value={username} onChange={e => setUsername(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none"/></div>
@@ -278,3 +278,4 @@
     </script>
 </body>
 </html>
+
