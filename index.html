@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>爷爷河畔</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Google Fonts: Nunito (现代圆润英文) 和 Noto Sans SC (现代中文) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- 引入 Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 引入 Lucide 图标库 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- 引入 LeanCloud SDK -->
+    <script src="https://unpkg.com/leancloud-storage@4.15.0/dist/av-min.js"></script>
+    <!-- 引入 Dayjs (用于论坛) -->
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/locale/zh-cn.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
+
+    <style>
+        /* 应用新字体 */
+        body { 
+            background-color: #f8fafc; 
+            font-family: 'Nunito', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        } 
+        
+        /* 通用样式补丁 */
+        .hide-scrollbar::-webkit-scrollbar, .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .hide-scrollbar, .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .prose p { margin-bottom: 0.8em; line-height: 1.6; }
+        
+        /* 动画 */
+        .fade-enter { opacity: 0; transform: translateY(10px); }
+        .fade-enter-active { opacity: 1; transform: translateY(0); transition: opacity 300ms, transform 300ms; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 底部安全区适配 - 增加 padding-bottom */
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        
+        /* 聊天气泡限制 */
+        .msg-max-w { max-width: 85%; }
+        @media (min-width: 640px) { .msg-max-w { max-width: 70%; } }
+
+        /* 顶部导航栏样式 */
+        .nav-tab {
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .nav-tab.active {
+            color: #4f46e5; /* indigo-600 */
+            font-weight: 700; /* 加粗 */
+        }
+        .nav-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -10px; /* 调整下划线位置 */
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background-color: #4f46e5;
+            border-radius: 99px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- 初始化配置 ---
+        dayjs.locale('zh-cn');
+        dayjs.extend(dayjs_plugin_relativeTime);
+
+        const APP_ID = "3qhCpnQyFEEfhCIu09l36JNA-MdYXbMMI";
+        const APP_KEY = "SnY967cwdk2kwn4tXHbU6Bu7";
+        const SERVER_URL = "https://3qhcpnqy.api.lncldglobal.com";
+
+        if (typeof AV !== 'undefined') {
+            AV.init({ appId: APP_ID, appKey: APP_KEY, serverURL: SERVER_URL });
+        }
+
+        const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+        // --- 通用共享组件 ---
+        
+        const Icon = ({ name, size = 20, className }) => {
+            const iconRef = useRef(null);
+            useEffect(() => {
+                if (window.lucide && iconRef.current) {
+                    const pascalName = name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+                    const iconNode = window.lucide.icons[pascalName];
+                    if (iconNode) {
+                        const svgElement = window.lucide.createElement(iconNode);
+                        svgElement.setAttribute('class', className || '');
+                        svgElement.setAttribute('width', size);
+                        svgElement.setAttribute('height', size);
+                        iconRef.current.innerHTML = '';
+                        iconRef.current.appendChild(svgElement);
+                    }
+                }
+            }, [name, className, size]);
+            return <span ref={iconRef} className="inline-flex items-center justify-center shrink-0"></span>;
+        };
+
+        const Avatar = ({ username, size = "w-10 h-10", textSize = "text-sm" }) => {
+            const char = username ? username.charAt(0).toUpperCase() : '?';
+            const colors = ['bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-rose-500', 'bg-orange-500', 'bg-teal-500'];
+            const colorIndex = username ? username.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % colors.length : 0;
+            return (
+                <div className={`${size} ${colors[colorIndex]} rounded-full flex items-center justify-center text-white font-bold shadow-sm shrink-0 ${textSize} tracking-wider`}>
+                    {char}
+                </div>
+            );
+        };
+
+        const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, icon }) => {
+            const baseClass = "px-4 py-2 rounded-xl font-bold transition-all active:scale-95 flex items-center gap-2 justify-center tracking-wide";
+            const variants = {
+                primary: "bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-200 disabled:opacity-50",
+                secondary: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50",
+                ghost: "text-slate-500 hover:bg-slate-100"
+            };
+            return (
+                <button disabled={disabled} onClick={onClick} className={`${baseClass} ${variants[variant]} ${className}`}>
+                    {icon && <Icon name={icon} size={18} />}
+                    {children}
+                </button>
+            );
+        };
+
+        // --- 统一登录组件 ---
+        const AuthScreen = ({ onLogin }) => {
+            const [isLogin, setIsLogin] = useState(true);
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError('');
+                try {
+                    if (isLogin) {
+                        const user = await AV.User.logIn(username, password);
+                        onLogin(user);
+                    } else {
+                        const user = new AV.User();
+                        user.setUsername(username);
+                        user.setPassword(password);
+                        user.set('status', 'pending');
+                        await user.signUp();
+                        alert("注册成功！请等待管理员审核。");
+                        onLogin(user);
+                    }
+                } catch (err) {
+                    setError(err.message.includes("taken") ? "用户名已存在" : "账号或密码错误");
+                }
+                setLoading(false);
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
+                    <div className="bg-white w-full max-w-sm p-8 rounded-2xl shadow-xl fade-in">
+                        <div className="text-center mb-6">
+                            <div className="inline-flex p-3 bg-indigo-50 rounded-2xl text-indigo-600 mb-3">
+                                {/* LOGO */}
+                                <Icon name="message-circle-heart" size={32} />
+                            </div>
+                            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">爷爷河畔</h1>
+                            <p className="text-slate-500 text-sm mt-1 font-medium">聊天室&论坛</p>
+                        </div>
+                        {error && <div className="bg-red-50 text-red-500 text-sm p-3 rounded-lg mb-4 flex items-center gap-2 font-medium"><Icon name="alert-circle" size={16}/>{error}</div>}
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">账号</label>
+                                <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 font-medium" value={username} onChange={e=>setUsername(e.target.value)} required />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">密码</label>
+                                <input type="password" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 font-medium" value={password} onChange={e=>setPassword(e.target.value)} required />
+                            </div>
+                            <Button className="w-full py-3" disabled={loading}>
+                                {loading ? '处理中...' : (isLogin ? '进入社区' : '注册账号')}
+                            </Button>
+                        </form>
+                        <div className="mt-6 text-center text-sm font-medium">
+                            <span className="text-slate-400">{isLogin ? "第一次来？" : "已有账号？"}</span>
+                            <button onClick={()=>setIsLogin(!isLogin)} className="text-indigo-600 font-bold ml-1 hover:underline">{isLogin ? "注册" : "登录"}</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 模块 1: 论坛应用 (ForumApp)
+        // ==========================================
+
+        const ForumPostList = ({ posts, onViewPost, onNewPost, refreshing }) => {
+            return (
+                <div className="space-y-4 pb-24 sm:pb-0">
+                    {posts.length === 0 && !refreshing && (
+                        <div className="text-center py-20 px-6">
+                            <div className="inline-flex p-6 bg-slate-100 rounded-full text-slate-300 mb-4">
+                                <Icon name="inbox" size={48} />
+                            </div>
+                            <h3 className="text-slate-600 font-bold mb-1">暂无话题</h3>
+                            <p className="text-slate-400 text-sm font-medium">还没有任何帖子，来发第一个吧！</p>
+                        </div>
+                    )}
+                    
+                    {posts.map(post => (
+                        <div key={post.id} onClick={() => onViewPost(post)} className="bg-white p-5 rounded-xl shadow-sm border border-transparent hover:border-indigo-100 hover:shadow-md transition-all cursor-pointer group active:bg-slate-50">
+                            <div className="flex items-start justify-between mb-2">
+                                <h3 className="font-bold text-lg text-slate-800 group-hover:text-indigo-600 transition-colors line-clamp-2 tracking-tight">{post.title}</h3>
+                            </div>
+                            <p className="text-slate-500 text-sm mb-4 line-clamp-2 leading-relaxed">
+                                {post.content}
+                            </p>
+                            <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
+                                <div className="flex items-center gap-2">
+                                    <Avatar username={post.authorName} size="w-5 h-5" textSize="text-[10px]" />
+                                    <span className="font-bold text-slate-500">{post.authorName}</span>
+                                    <span>·</span>
+                                    <span>{dayjs(post.createdAt).fromNow()}</span>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <span className="flex items-center gap-1"><Icon name="message-circle" size={14} /> {post.replyCount || 0}</span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        const ForumPostDetail = ({ post, onBack, currentUser }) => {
+            const [replies, setReplies] = useState([]);
+            const [replyContent, setReplyContent] = useState('');
+            const [submitting, setSubmitting] = useState(false);
+            const commentsEndRef = useRef(null);
+
+            useEffect(() => {
+                const fetchReplies = async () => {
+                    const query = new AV.Query('ForumReply');
+                    const postPointer = AV.Object.createWithoutData('ForumPost', post.id);
+                    query.equalTo('post', postPointer);
+                    query.ascending('createdAt');
+                    query.include('author');
+                    try {
+                        const results = await query.find();
+                        setReplies(results.map(r => ({ id: r.id, ...r.attributes, createdAt: r.createdAt })));
+                    } catch (e) {
+                         if (e.code === 101 || e.message.includes('404')) { setReplies([]); } 
+                         else { console.error("Fetch replies failed:", e); }
+                    }
+                };
+                fetchReplies();
+            }, [post]);
+
+            const handleReply = async (e) => {
+                e.preventDefault();
+                if (!replyContent.trim()) return;
+                setSubmitting(true);
+                try {
+                    const Reply = AV.Object.extend('ForumReply');
+                    const reply = new Reply();
+                    reply.set('content', replyContent);
+                    reply.set('author', currentUser);
+                    reply.set('authorName', currentUser.getUsername());
+                    reply.set('post', AV.Object.createWithoutData('ForumPost', post.id));
+                    
+                    const acl = new AV.ACL();
+                    acl.setPublicReadAccess(true);
+                    acl.setWriteAccess(currentUser, true);
+                    reply.setACL(acl);
+                    
+                    const savedReply = await reply.save();
+                    
+                    // 注意：这里尝试更新 Post 的 count，但因为权限通常会失败，所以我们主要依赖列表页的实时查询
+                    try {
+                        const postObj = AV.Object.createWithoutData('ForumPost', post.id);
+                        postObj.increment('replyCount', 1);
+                        await postObj.save();
+                    } catch (countErr) { 
+                        console.log("Reply count update skipped due to permissions (Expected behavior)."); 
+                    }
+
+                    setReplies([...replies, { id: savedReply.id, ...savedReply.attributes, createdAt: new Date() }]);
+                    setReplyContent('');
+                    setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+                } catch (err) { alert("回复失败：" + err.message); }
+                setSubmitting(false);
+            };
+
+            return (
+                <div className="flex flex-col h-full bg-white sm:rounded-2xl overflow-hidden relative z-40">
+                    <div className="px-3 py-3 border-b flex items-center gap-3 bg-white sticky top-0 z-10 shrink-0 shadow-sm safe-top">
+                        <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors active:bg-slate-200">
+                            <Icon name="arrow-left" className="text-slate-700" size={24} />
+                        </button>
+                        <span className="font-bold text-lg text-slate-800 line-clamp-1 flex-1 tracking-tight">详情</span>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar bg-white">
+                        <div className="mb-8">
+                            <h1 className="text-2xl font-bold text-slate-900 mb-4 leading-tight tracking-tight">{post.title}</h1>
+                            <div className="flex items-center gap-3 mb-6 pb-6 border-b border-slate-100">
+                                <Avatar username={post.authorName} />
+                                <div>
+                                    <div className="font-bold text-slate-700">{post.authorName}</div>
+                                    <div className="text-xs text-slate-400 font-medium">{dayjs(post.createdAt).format('YYYY年MM月DD日 HH:mm')}</div>
+                                </div>
+                            </div>
+                            <div className="prose prose-slate max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap text-[16px]">
+                                {post.content}
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-xl p-4 sm:p-6 mb-4">
+                            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 text-sm uppercase tracking-wider">
+                                <Icon name="message-square" size={16} /> 评论 ({replies.length})
+                            </h3>
+                            <div className="space-y-6">
+                                {replies.length === 0 && <div className="text-slate-400 text-sm py-4 text-center font-medium">暂无评论，快来抢沙发</div>}
+                                {replies.map((reply, idx) => (
+                                    <div key={reply.id} className="flex gap-3">
+                                        <Avatar username={reply.authorName} size="w-8 h-8" textSize="text-xs" />
+                                        <div className="flex-1">
+                                            <div className="flex justify-between items-baseline mb-1">
+                                                <span className="font-bold text-sm text-slate-700">{reply.authorName}</span>
+                                                <span className="text-xs text-slate-400 font-medium">#{idx + 1}</span>
+                                            </div>
+                                            <p className="text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">{reply.content}</p>
+                                            <div className="text-xs text-slate-300 mt-1 font-medium">{dayjs(reply.createdAt).fromNow()}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                                <div ref={commentsEndRef}></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-3 border-t bg-white shrink-0 safe-bottom">
+                        <form onSubmit={handleReply} className="flex gap-2">
+                            <input 
+                                value={replyContent}
+                                onChange={e => setReplyContent(e.target.value)}
+                                placeholder="写下你的评论..." 
+                                className="flex-1 bg-slate-100 border-0 rounded-full px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium"
+                            />
+                            <button disabled={!replyContent.trim() || submitting} className="bg-indigo-600 text-white rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-50 hover:bg-indigo-700 active:scale-95 transition-all">
+                                {submitting ? <Icon name="loader-2" className="animate-spin" size={18} /> : <Icon name="send" size={18} />}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const ForumCreatePostModal = ({ onClose, onSuccess, currentUser }) => {
+            const [title, setTitle] = useState('');
+            const [content, setContent] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!title.trim() || !content.trim()) return;
+                setLoading(true);
+                try {
+                    const Post = AV.Object.extend('ForumPost');
+                    const post = new Post();
+                    post.set('title', title);
+                    post.set('content', content);
+                    post.set('author', currentUser);
+                    post.set('authorName', currentUser.getUsername());
+                    // 这里的 replyCount 仅作初始化，实际显示由实时查询决定
+                    post.set('replyCount', 0);
+                    
+                    const acl = new AV.ACL();
+                    acl.setPublicReadAccess(true);
+                    acl.setWriteAccess(currentUser, true);
+                    post.setACL(acl);
+
+                    await post.save();
+                    onSuccess();
+                } catch (err) { alert("发布失败：" + err.message); }
+                setLoading(false);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] sm:h-auto h-full sm:rounded-2xl rounded-none">
+                        <div className="p-4 border-b flex justify-between items-center bg-slate-50 shrink-0">
+                            <button onClick={onClose} className="text-slate-500 hover:text-slate-800 font-bold">取消</button>
+                            <h3 className="font-bold text-slate-800">发布新话题</h3>
+                            <button onClick={handleSubmit} disabled={loading || !title || !content} className="text-indigo-600 font-bold hover:text-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed">
+                                {loading ? '...' : '发布'}
+                            </button>
+                        </div>
+                        <form className="p-4 flex-1 overflow-y-auto flex flex-col gap-4">
+                            <input 
+                                className="w-full text-lg font-bold placeholder:text-slate-300 border-b border-slate-100 py-3 outline-none focus:border-indigo-500 transition-colors bg-transparent"
+                                placeholder="标题 (必填)" value={title} onChange={e => setTitle(e.target.value)} autoFocus
+                            />
+                            <textarea 
+                                className="w-full flex-1 resize-none text-slate-600 placeholder:text-slate-300 outline-none leading-relaxed text-base bg-transparent min-h-[200px]"
+                                placeholder="分享你的想法..." value={content} onChange={e => setContent(e.target.value)}
+                            ></textarea>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const ForumApp = ({ user, onLogout }) => {
+            const [view, setView] = useState('list');
+            const [currentPost, setCurrentPost] = useState(null);
+            const [showCreateModal, setShowCreateModal] = useState(false);
+            const [posts, setPosts] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            // --- 修复的核心代码：获取帖子同时查询评论数 ---
+            const fetchPosts = async () => {
+                setLoading(true);
+                const query = new AV.Query('ForumPost');
+                query.descending('createdAt');
+                query.limit(20);
+                try {
+                    const results = await query.find();
+                    
+                    // 并行获取每个帖子的真实评论数
+                    const postsWithCounts = await Promise.all(results.map(async (p) => {
+                        // 1. 获取基本数据
+                        const postData = { id: p.id, ...p.attributes, createdAt: p.createdAt };
+                        
+                        // 2. 实时查询该帖子的回复数
+                        try {
+                            const replyQuery = new AV.Query('ForumReply');
+                            replyQuery.equalTo('post', p); // 使用指针查询
+                            const count = await replyQuery.count(); // LeanCloud count 查询
+                            return { ...postData, replyCount: count }; // 覆盖原有的 replyCount
+                        } catch (e) {
+                            console.error("Count fetch failed for post", p.id);
+                            return postData;
+                        }
+                    }));
+
+                    setPosts(postsWithCounts);
+                } catch (e) { 
+                    if (e.code === 101 || e.message.includes("404")) { setPosts([]); } 
+                    else { console.error("Fetch posts failed:", e); }
+                }
+                setLoading(false);
+            };
+            // ---------------------------------------------
+
+            useEffect(() => { fetchPosts(); }, []);
+
+            return (
+                <div className="h-full flex justify-center bg-slate-50 sm:bg-[#f3f4f6] relative">
+                    <div className="w-full max-w-5xl flex flex-col sm:flex-row gap-6 sm:p-4 p-0 h-full">
+                        <div className="hidden sm:flex w-64 shrink-0 flex-col gap-4 h-full overflow-y-auto hide-scrollbar">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                                <div className="flex items-center gap-4 mb-6">
+                                    <Avatar username={user.getUsername()} size="w-14 h-14" textSize="text-xl" />
+                                    <div className="overflow-hidden">
+                                        <h2 className="font-bold text-lg text-slate-800 truncate">{user.getUsername()}</h2>
+                                        <div className="flex items-center gap-1 text-xs text-green-600 mt-1 font-medium">
+                                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                            <span>在线</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <Button onClick={() => setShowCreateModal(true)} icon="plus">发布新帖</Button>
+                                    <Button variant="secondary" onClick={() => { setView('list'); fetchPosts(); }} icon="home">回到广场</Button>
+                                </div>
+                            </div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                    <Icon name="info" size={16} className="text-indigo-500"/> 公告
+                                </h3>
+                                <p className="text-sm text-slate-500 leading-relaxed font-medium">欢迎来到爷爷河畔广场。请友善交流，理性发言。</p>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 sm:min-w-0 bg-slate-50 sm:bg-transparent h-full overflow-y-auto sm:overflow-visible">
+                            {view === 'list' ? (
+                                <div className="h-full overflow-y-auto hide-scrollbar">
+                                    <div className="flex items-center justify-between mb-4 px-4 pt-4 sm:pt-0">
+                                        <h2 className="text-xl font-bold text-slate-800 hidden sm:block tracking-tight">最新话题</h2>
+                                        <h2 className="text-sm font-bold text-slate-500 sm:hidden">全部话题</h2>
+                                        <button onClick={fetchPosts} className="hidden sm:block p-2 text-slate-400 hover:text-indigo-600 transition-colors rounded-full hover:bg-white active:bg-slate-200">
+                                            <Icon name="refresh-cw" size={18} className={loading ? "animate-spin" : ""} />
+                                        </button>
+                                    </div>
+                                    {loading ? (
+                                        <div className="space-y-4 px-4 sm:px-0">
+                                            {[1,2,3,4].map(i => (
+                                                <div key={i} className="bg-white p-5 rounded-xl shadow-sm h-32 animate-pulse"></div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="px-4 sm:px-0">
+                                            <ForumPostList posts={posts} onViewPost={(post) => { setCurrentPost(post); setView('detail'); }} />
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="hidden sm:block h-[80vh]">
+                                    <ForumPostDetail post={currentPost} currentUser={user} onBack={() => setView('list')} />
+                                </div>
+                            )}
+
+                            {view === 'detail' && (
+                                <div className="sm:hidden fixed inset-0 z-50 bg-white">
+                                     <ForumPostDetail post={currentPost} currentUser={user} onBack={() => setView('list')} />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {view === 'list' && (
+                        <div className="fixed bottom-8 right-6 sm:hidden flex flex-col gap-3 z-30 items-center">
+                            <button onClick={fetchPosts} className="w-12 h-12 bg-white text-slate-600 rounded-full shadow-lg border border-slate-100 flex items-center justify-center active:scale-90 transition-transform">
+                                <Icon name="refresh-cw" size={20} className={loading ? "animate-spin text-indigo-600" : ""} />
+                            </button>
+                            <button onClick={() => setShowCreateModal(true)} className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-xl shadow-indigo-300 flex items-center justify-center active:scale-90 transition-transform">
+                                <Icon name="plus" size={28} />
+                            </button>
+                        </div>
+                    )}
+
+                    {showCreateModal && (
+                        <ForumCreatePostModal currentUser={user} onClose={() => setShowCreateModal(false)} onSuccess={() => { setShowCreateModal(false); fetchPosts(); setView('list'); }} />
+                    )}
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 模块 2: 聊天应用 (ChatApp)
+        // ==========================================
+
+        const ChatApp = ({ user, onLogout }) => {
+            const [currentRoom, setCurrentRoom] = useState(null);
+            const [rooms, setRooms] = useState([]);
+            const [messages, setMessages] = useState([]);
+            const [text, setText] = useState('');
+            const [loadingMessages, setLoadingMessages] = useState(false);
+            
+            const scrollViewportRef = useRef(null);
+            const shouldAutoScrollRef = useRef(true);
+
+            useEffect(() => {
+                const fetchRooms = async () => {
+                    const query = new AV.Query('RoomList');
+                    query.descending('createdAt');
+                    try {
+                        const results = await query.find();
+                        setRooms(results.map(r => ({ id: r.id, ...r.attributes })));
+                    } catch (e) { console.error(e); }
+                };
+                fetchRooms();
+            }, []);
+
+            const fetchMessages = useCallback(async (roomId, isInitialLoad = false) => {
+                if (isInitialLoad) setLoadingMessages(true);
+                const query = new AV.Query('Message');
+                query.equalTo('room', roomId);
+                query.ascending('createdAt');
+                query.limit(50);
+                try {
+                    const results = await query.find();
+                    const newMessages = results.map(m => ({ id: m.id, ...m.attributes, createdAt: m.createdAt }));
+                    setMessages(prev => {
+                        const prevIds = prev.map(m => m.id).join(',');
+                        const newIds = newMessages.map(m => m.id).join(',');
+                        return prevIds === newIds ? prev : newMessages;
+                    });
+                } catch (e) { console.error(e); }
+                if (isInitialLoad) setLoadingMessages(false);
+            }, []);
+
+            useEffect(() => {
+                if (currentRoom) {
+                    shouldAutoScrollRef.current = true;
+                    fetchMessages(currentRoom.roomId, true);
+                    const timer = setInterval(() => { fetchMessages(currentRoom.roomId, false); }, 3000);
+                    return () => clearInterval(timer);
+                }
+            }, [currentRoom, fetchMessages]);
+
+            useEffect(() => {
+                if (!scrollViewportRef.current) return;
+                const viewport = scrollViewportRef.current;
+                if (shouldAutoScrollRef.current) {
+                    setTimeout(() => { viewport.scrollTop = viewport.scrollHeight; }, 0);
+                }
+            }, [messages]);
+
+            const handleScroll = (e) => {
+                const { scrollTop, scrollHeight, clientHeight } = e.target;
+                const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+                shouldAutoScrollRef.current = isNearBottom;
+            };
+
+            const sendMessage = async (e) => {
+                e.preventDefault();
+                if (!text.trim()) return;
+                shouldAutoScrollRef.current = true;
+                const originalText = text;
+                setText('');
+                try {
+                    const Message = AV.Object.extend('Message');
+                    const msg = new Message();
+                    msg.set('text', originalText);
+                    msg.set('name', user.getUsername());
+                    msg.set('room', currentRoom.roomId);
+                    msg.set('user', user);
+                    const acl = new AV.ACL();
+                    acl.setPublicReadAccess(true);
+                    acl.setWriteAccess(user, true);
+                    msg.setACL(acl);
+                    await msg.save();
+                    fetchMessages(currentRoom.roomId, false);
+                } catch (err) { 
+                    console.error("发送失败:", err);
+                    setText(originalText);
+                    alert("发送失败: " + (err.message || "未知错误")); 
+                }
+            };
+
+            return (
+                <div className="w-full h-full flex flex-col sm:flex-row bg-slate-100 sm:p-4 p-0">
+                    <div className="w-full h-full sm:max-w-4xl sm:mx-auto bg-white sm:rounded-2xl sm:shadow-lg overflow-hidden flex flex-col sm:flex-row border border-slate-200">
+                        <div className={`${currentRoom ? 'hidden sm:flex' : 'flex'} flex-col w-full sm:w-80 bg-slate-50 border-r border-slate-100 h-full`}>
+                            <div className="p-4 border-b border-slate-100 bg-white flex justify-between items-center">
+                                <h2 className="font-bold text-slate-800 flex items-center gap-2">聊天列表</h2>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                                {rooms.length === 0 && <div className="text-center text-slate-400 py-10 text-sm font-medium">加载中...</div>}
+                                {rooms.map(room => (
+                                    <div key={room.id} onClick={() => setCurrentRoom(room)} className={`p-3 rounded-lg flex items-center justify-between cursor-pointer transition-all border ${currentRoom?.id === room.id ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-indigo-50 border-transparent'}`}>
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${currentRoom?.id === room.id ? 'bg-indigo-500 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
+                                                <span className="font-bold">{room.name.charAt(0)}</span>
+                                            </div>
+                                            <span className="font-bold">{room.name}</span>
+                                        </div>
+                                        <Icon name="chevron-right" size={16} className={currentRoom?.id === room.id ? 'text-indigo-200' : 'text-slate-300'}/>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className={`${!currentRoom ? 'hidden sm:flex' : 'flex'} flex-1 flex-col h-full bg-slate-100 relative`}>
+                            {!currentRoom ? (
+                                <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center">
+                                    <Icon name="message-square" size={40} className="mb-4 text-slate-300"/>
+                                    <p className="text-sm font-medium">请选择一个房间开始聊天</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="h-14 bg-white border-b border-slate-100 flex items-center gap-3 px-4 shadow-sm z-10 shrink-0">
+                                        <button onClick={() => setCurrentRoom(null)} className="sm:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-full">
+                                            <Icon name="arrow-left" />
+                                        </button>
+                                        <span className="font-bold text-slate-800 tracking-tight">{currentRoom.name}</span>
+                                    </div>
+
+                                    <div ref={scrollViewportRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide bg-slate-100">
+                                        {loadingMessages && messages.length === 0 && <div className="flex justify-center py-10"><Icon name="loader-2" className="animate-spin text-indigo-500"/></div>}
+                                        {messages.map((msg, index) => {
+                                            const isMe = msg.name === user.getUsername();
+                                            const showTime = index === 0 || (msg.createdAt && messages[index-1].createdAt && (new Date(msg.createdAt) - new Date(messages[index-1].createdAt) > 5 * 60 * 1000));
+                                            return (
+                                                <div key={msg.id} className="fade-in">
+                                                    {showTime && (
+                                                        <div className="flex justify-center mb-4">
+                                                            <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-1 rounded-full font-medium">
+                                                                {new Date(msg.createdAt).toLocaleString([], {hour: '2-digit', minute:'2-digit'})}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    <div className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                                                        <Avatar username={msg.name} size="w-9 h-9" />
+                                                        <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} msg-max-w`}>
+                                                            <div className="flex items-baseline gap-2 mb-1">
+                                                                <span className="text-xs text-slate-500 font-bold">{msg.name}</span>
+                                                            </div>
+                                                            <div className={`px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed break-words shadow-sm font-medium ${isMe ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white text-slate-800 border border-slate-100 rounded-tl-sm'}`}>
+                                                                {msg.text}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        <div className="h-2"></div>
+                                    </div>
+
+                                    <div className="p-3 bg-white border-t border-slate-100 shrink-0 safe-bottom">
+                                        <form onSubmit={sendMessage} className="flex items-end gap-2">
+                                            <div className="flex-1 bg-slate-100 rounded-2xl px-4 py-2 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:bg-white transition-all">
+                                                <textarea value={text} onChange={e => setText(e.target.value)} onKeyDown={e => {if (e.key === 'Enter' && !e.shiftKey) {e.preventDefault(); if(text.trim()) sendMessage(e);}}} placeholder="输入消息..." className="w-full bg-transparent border-0 outline-none text-sm resize-none py-1 font-medium" rows="1" style={{minHeight: '24px'}} />
+                                            </div>
+                                            <button disabled={!text.trim()} className="w-10 h-10 mb-0.5 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-md active:scale-95 disabled:opacity-50">
+                                                <Icon name="send" size={18} />
+                                            </button>
+                                        </form>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 主程序入口
+        // ==========================================
+
+        const MainApp = () => {
+            const [user, setUser] = useState(AV.User.current());
+            const [activeTab, setActiveTab] = useState('chat');
+            const [status, setStatus] = useState(user ? (user.get('status') || 'pending') : 'pending');
+            const [isChecking, setIsChecking] = useState(!!user);
+
+            const handleLogout = () => {
+                AV.User.logOut();
+                setUser(null);
+            };
+
+            useEffect(() => {
+                if (user) {
+                    setIsChecking(true);
+                    const checkStatus = async () => {
+                        try {
+                            const freshUser = await user.fetch();
+                            setStatus(freshUser.get('status') || 'pending');
+                        } catch(e) { 
+                            console.error("Status fetch failed, using local status", e);
+                            setStatus(user.get('status') || 'pending');
+                        } finally {
+                            setIsChecking(false);
+                        }
+                    };
+                    checkStatus();
+                } else {
+                    setIsChecking(false);
+                }
+            }, [user]);
+
+            if (!user) {
+                return <AuthScreen onLogin={setUser} />;
+            }
+
+            if (isChecking) {
+                 return (
+                    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-3">
+                        <Icon name="loader-2" className="animate-spin text-indigo-500" size={32} />
+                        <span className="text-slate-400 text-sm font-medium">正在同步账号状态...</span>
+                    </div>
+                 );
+            }
+
+            if (status !== 'approved') {
+                return (
+                    <div className="w-full h-screen flex items-center justify-center bg-slate-50 p-4">
+                        <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl flex flex-col items-center text-center fade-in">
+                            <div className={`p-5 rounded-full mb-6 ${status === 'banned' ? 'bg-red-50' : 'bg-amber-50'}`}>
+                                <Icon name={status === 'banned' ? 'ban' : 'clock'} size={48} className={status === 'banned' ? 'text-red-500' : 'text-amber-500'} />
+                            </div>
+                            <h2 className="text-xl font-bold text-slate-800 mb-2">
+                                {status === 'banned' ? '账号已封禁' : '账号审核中'}
+                            </h2>
+                            <p className="text-slate-500 mb-8 leading-relaxed font-medium">
+                                {status === 'banned' 
+                                    ? "很抱歉，您的账号因违反社区规定已被封禁。" 
+                                    : "管理员正在快马加鞭审核您的申请，请稍作等待。"}
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-3 w-full">
+                                <button onClick={() => window.location.reload()} className="flex-1 py-3 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 font-bold flex items-center justify-center gap-2 transition-colors">
+                                    <Icon name="refresh-cw" size={18} /> 刷新状态
+                                </button>
+                                <button onClick={handleLogout} className="flex-1 py-3 bg-slate-800 text-white rounded-xl hover:bg-slate-700 font-bold flex items-center justify-center gap-2 transition-colors">
+                                    <Icon name="log-out" size={18} /> 退出登录
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex flex-col fixed inset-0 w-full bg-slate-50">
+                    {/* 顶栏 */}
+                    <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 shrink-0 shadow-sm z-50">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-indigo-600 text-white w-8 h-8 flex items-center justify-center rounded-lg shrink-0">
+                                <Icon name="message-circle-heart" size={20} />
+                            </div>
+                            <span className="font-bold text-lg text-slate-800 hidden sm:block tracking-tight">爷爷河畔</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-8 h-full">
+                            <div 
+                                onClick={() => setActiveTab('chat')}
+                                className={`nav-tab h-full flex items-center gap-2 px-2 text-sm ${activeTab === 'chat' ? 'active' : 'text-slate-500 hover:text-slate-800'} font-bold`}
+                            >
+                                <Icon name="message-circle" size={18} />
+                                聊天室
+                            </div>
+                            <div 
+                                onClick={() => setActiveTab('forum')}
+                                className={`nav-tab h-full flex items-center gap-2 px-2 text-sm ${activeTab === 'forum' ? 'active' : 'text-slate-500 hover:text-slate-800'} font-bold`}
+                            >
+                                <Icon name="layout-grid" size={18} />
+                                广场
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <div className="hidden sm:flex items-center gap-2 text-sm text-slate-600 bg-slate-100 px-3 py-1.5 rounded-full">
+                                <Avatar username={user.getUsername()} size="w-5 h-5" />
+                                <span className="max-w-[100px] truncate font-bold">{user.getUsername()}</span>
+                            </div>
+                            <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 transition-colors p-2" title="退出登录">
+                                <Icon name="log-out" size={20} />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-hidden relative w-full">
+                        {activeTab === 'chat' ? (
+                            <ChatApp user={user} onLogout={handleLogout} />
+                        ) : (
+                            <ForumApp user={user} onLogout={handleLogout} />
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MainApp />);
+    </script>
+</body>
+</html>
